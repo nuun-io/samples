@@ -1,0 +1,305 @@
+|=======================
+|PEP       |  001
+|Title     |  Plugins : Less coupling , Better cohesion
+|Author    |  Epo Jemba  epo.jemba@kametic.com
+|Status    |  draft
+|=======================
+
+
+= Abstract
+
+Enhance the Plugin A.P.I. to 
+
+- Help decouple plugins allthogether,
+- Offer a clean place to organize code between multi plugin use cases.
+
+= Motivation
+
+Plugin is the place where all the inversion of control, dynamic bindings and start time behaviour occur.
+We often have to make hard dependencies and embed stack logic inside them.
+We need to find a way to further organize developer stack logic:
+
+- The first motivation is to reduce coupling between plugins.
+- The second motivation is to help stack designers to decouple their stack logic from Nuun.IO A.P.I.
+
+= Specification
+
+== Decoupling with interfaces
+
+With Nuun.IO a plugin can request required plugins and dependent plugins to the kernel.
+By doing so, we ask a direct reference of the plugins thus introducing a coupling.
+
+Basic idea is to:
+
+1. Create interface that sum up contract between your plugins,
+2. Make dependent and required plugins implements those interfaces,
+2. Make your current plugin request for those interfaces rather than plugin directly.
+
+Required and dependent plugins will implement the interfaces them explicitely or implicitely.
+We cover this just after.
+
+=== Explicit Interfaces
+
+We create the interface +ConfigurationTrait+, a plugin trait, the contract:
+
+[source,java]
+----
+public interface ConfigurationTrait {
+
+    public String get (String key) ;
+
+    public void put(String key , String value) ;
+}
+----
+
+We create a plugin +RequiredPlugin+ implementing this interface
+[source,java]
+----
+public class RequiredPlugin extends AbstractPlugin implements ConfigurationTrait {
+
+    // - - - - - 8< - - - - -
+
+    // trait implementation
+    public String get (String key) {
+       return goodValue;
+    }
+
+    public void put (String key , String value) {
+       // trait implementation
+    }
+
+    // - - - - - 8< - - - - -
+
+}
+----
+When the plugin +MyPlugin+ will require this dependency, it will ask for +ConfigurationTrait+ rather than +RequiredPlugin+.
+
+The method for the request will not be:
+
+[source,java]
+----
+    Collection<Class<? extends Plugin>> Plugin.requiredPlugins();
+    // or
+    Collection<Class<? extends Plugin>> Plugin.dependentPlugins();
+----
++MyPlugin+ will now request it via
+
+[source,java]
+----
+public class MyPlugin extends AbstratPlugin {
+
+     // . . .
+
+    public Collection<Class<? >> requiredTraits() {
+       return  collectionOf(ConfigurationTrait.class);
+    }
+    
+    
+    public Collection<Class<? >> dependentTraits() {
+       return  collectionOf(ConfigurationTrait.class);
+    }
+}
+----
+Instead of getting result via +InitContext.requiredPlugins()+ or +InitContext.dependentPlugins()+ 
+[source,java]
+----
+    @Override
+    public InitState init(InitContext initContext) {
+        // get required  trait by class
+        ConfigurationTrait configuration = initContext.requiredTrait(ConfigurationTrait.class);
+        String myValue = configuration.get("mykey");
+        
+        // get dependent trait by class
+       LoggingTrait  loogging = initContext.dependentTrait(LoggingTrait.class);
+       logging.verbosity(LoggingTrait.INFO);
+
+       // get all required plugins
+       Map<Class<?> , ?> requiredTraits = initContext.requiredTraits();
+       
+       // get all dependent plugins
+       Map<Class<?> , ?> dependentTraits = initContext.dependendTraits();
+    }
+----
+
+
+=== Implicit Interfaces
+In some cases, you'll have to require or make dependent an already existing plugins.
+You'll have to introduce a coupling on this plugin, as long as this plugin has no declared some trait.
+
+This is sad ! :(
+     
+==== Go style interfaces
+
+In golang to satisfy an interface, there is no need to implement it.
+You just have to satisfy the contract of the interface.
+
+Implicit interface will allow you to use an already defined plugin by creating a trait for it.
+Nuun Kernel will recognize the plugin from the trait and will proxy it for you.
+
+==== Example
+
+
+Given an already existing plugin +LegacyPlugin+
+
+[source,java]
+----
+public class LegacyPlugin extends AbstratPlugin {
+
+     // . . .
+
+    public String legacyMethod() {
+       return  something;
+    }
+    
+    public void legacyMethod(Object input) {
+       // implementation
+    }
+    
+}
+----
+
+Rather than introducting a coupling on +LegacyPlugin+ class, just create the interface +LegacyTrait+.
+The methods of the interface have to match the legacy plugin methods you want to work with.
+
+[source,java]
+----
+public interface LegacyTrait  {
+
+    public String legacyMethod() ;
+    
+    public void legacyMethod(Object input) ;
+    
+}
+----
+The kernel will automatically proxy +LegacyPlugin+ to the +Legacy+.
+You'll have to use the same method to require or make dependent the legacy trait than above.
+You'll have to use InitContext to get your trait, the same way.
+
+[source,java]
+----
+public class MyPlugin extends AbstratPlugin {
+
+     // request the trait
+    public Collection<Class<? >> dependentTraits() {
+       return  collectionOf(LegacyTrait.class);
+    }
+    
+    // use the trait
+    public InitState init(InitContext initContext) {
+        // get required  trait by class
+        LegacyTrait legacy = initContext.requiredTrait(LegacyTrait.class);
+        // 'legacy' is a proxy to LegacyPlugin
+        String myValue = legacy.legacyMethod();
+        
+    }
+}
+----
+
+==== Conclusion
+
+This way no coupling between your module and a legacy plugin.
+
+== Increase coherence
+
+Plugins role is to focus on the initialization of the application using the Kernel/Plugin IOC Protocol (c).
+However, some logic could not be located inside any nuun plugin because
+
+- it is sufficiently generic and can be reused, 
+- it can be usefull across several plugins.
+
+The main role of this feature is to help nuun users to 
+
+- better organize their core logic and 
+- give them a way to decouple from Nuun API.
+
+=== A Simple Scoped POJO 
+
+The logic holder is a simple POJO and it contains the core logic. 
+As simple as this. A good practice is not include any dependency to Nuun API.
+
+
+Requesting the POJO is quite similar to request a traits or plugins.
+The plugins will ask the POJO encapsulating the core logic via its class.
+
+By default the kernel will provide a singleton of the POJO to all plugins. 
+Scope version of this could be added later if needed. 
+For now any scope could be handled inside the POJO itself.
+
+=== Example
+
+Given a POJO containing the core logic of your feature.
+
+[source,java]
+----
+public class ConfigurationLogic  {
+
+    // the configuration of all your application
+    Configuration configuration;
+    
+    // configuration fragments
+    List<Map<String,Object>> configurationFragments;
+    
+    public ConfigurationLogic () {
+        // it is a good idea to delegate the creation
+        // to your core logic objects
+        configuration = new Configuration();
+        configurationFragment = new List<> ();
+    }
+
+     // 
+    public void compute() {
+       // . . compute configuration with fragment .
+    }
+    
+    public Configuration configuration() {
+       // simply returns the configuration
+       return configuration;
+    }
+    
+    // 
+    public void add(Map<String,Object> confFragment) {
+        // add a configuration fragment
+        ...
+    }
+}
+----
+This is a good practice to delegate the creation of core objects like +configuration+.
++ConfigurationLogic+ is then completely testable.
+
+The plugins will be able to request the Core Logic object and use it this way :
+
+[source,java]
+----
+public class MyPlugin extends AbstratPlugin {
+
+     // request the core logic
+    public Collection<Class<? >> coreLogic() {
+       return  collectionOf(ConfigurationLogic.class);
+    }
+    
+    // use the trait
+    public InitState init(InitContext initContext) {
+        // get the core logic component which is a singleton
+        ConfigurationLogic logic = initContext.coreLogic(ConfigurationLogic.class);
+        
+        // another plugin could
+        logic.add(mapOfConfigurationFromProps)
+        
+        // another plugin could
+        logic.add(mapOfConfigurationFromYaml)
+        
+        // another plugin could
+        logic.add(mapOfConfigurationFromToml)
+        
+        // construct the configuration
+        logic.compute();
+        
+        // 'legacy' is a proxy to LegacyPlugin
+        configuration = logic.configuration();
+        
+    }
+}
+----
+
+Another subsequent good practice is that the plugin does not holds any core logic pojo.
+This is not a strong requirement. 
