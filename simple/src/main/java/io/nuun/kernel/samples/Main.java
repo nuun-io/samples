@@ -1,11 +1,11 @@
 package io.nuun.kernel.samples;
 
+import javax.inject.Inject;
+import javax.inject.Named;
+
 import io.nuun.kernel.api.annotations.Entrypoint;
 import io.nuun.kernel.core.NuunRunner;
 import io.nuun.kernel.samples.api.HelloWorldService;
-
-import javax.inject.Inject;
-import javax.inject.Named;
 
 @Entrypoint
 public class Main implements Runnable
@@ -20,7 +20,7 @@ public class Main implements Runnable
     @Override
     public void run()
     {
-        System.out.println("inside Main sample message is :\n" + helloWorldService.say(message));
+        System.out.println( helloWorldService.say(message));
     }
 
     public static void main(String[] args)
