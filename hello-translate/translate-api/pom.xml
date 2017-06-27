@@ -19,8 +19,8 @@
 	<dependencies>
 		<dependency>
 			<groupId>io.nuun.kernel</groupId>
-			<artifactId>kernel-core</artifactId>
-			<version>1.0.M10-SNAPSHOT</version>
+			<artifactId>message-value</artifactId>
+			<version>0.1-SNAPSHOT</version>
 		</dependency>
 	</dependencies>
 

@@ -17,11 +17,7 @@
 	</properties>
 
 	<dependencies>
-		<dependency>
-			<groupId>io.nuun.kernel</groupId>
-			<artifactId>kernel-core</artifactId>
-			<version>1.0.M10-SNAPSHOT</version>
-		</dependency>
+
 	</dependencies>
 
 </project>

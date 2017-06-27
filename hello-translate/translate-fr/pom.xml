@@ -18,9 +18,16 @@
 	<dependencies>
 		<dependency>
 			<groupId>io.nuun.kernel</groupId>
-			<artifactId>kernel-core</artifactId>
+			<artifactId>translate-api</artifactId>
+			<version>0.1-SNAPSHOT</version>
+		</dependency>
+		
+		<dependency>
+			<groupId>io.nuun.kernel</groupId>
+			<artifactId>kernel-specs</artifactId>
 			<version>1.0.M10-SNAPSHOT</version>
 		</dependency>
+		
 	</dependencies>
 
 </project>
